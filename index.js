@@ -1,179 +1,147 @@
 // API Its Real - Optimizado para Render.com
 const express = require('express');
+const cors = require('cors');
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-// Middleware
+// Middlewares
+app.use(cors());
 app.use(express.json());
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
-});
 
-// Sistema de precios Its Real
+// ==========================================
+// CONFIGURACIÓN DE PRECIOS - ITS REAL
+// ==========================================
+
 const PRECIO_RANGOS = {
-  '1-2': { min: 400000, max: 600000, disenoHrs: '1hr', sesionHrs: '1-2hrs' },
-  '3-4': { min: 600000, max: 900000, disenoHrs: '1.5-2hrs', sesionHrs: '2-3hrs' },
-  '5-6': { min: 900000, max: 1200000, disenoHrs: '2-3hrs', sesionHrs: '3-4hrs' },
-  '7-8': { min: 1200000, max: 1500000, disenoHrs: '3-4hrs', sesionHrs: '4-5hrs' },
-  '9+': { min: 1500000, max: 2000000, disenoHrs: '4-5hrs', sesionHrs: '5-6hrs+' }
+  1: { min: 400000, max: 400000 },      // Mini: precio fijo 400k
+  2: { min: 500000, max: 700000 },      // Pequeño
+  3: { min: 800000, max: 1000000 },     // Mediano
+  4: { min: 1200000, max: 1500000 },    // Grande
+  5: { min: 0, max: 0 }                 // Más grande: cotización personalizada
 };
 
-function calcularPuntos(datos) {
-  return parseInt(datos.puntos_tamano || 0) + 
-         parseInt(datos.puntos_zona || 0) + 
-         parseInt(datos.puntos_estilo || 0) + 
-         parseInt(datos.puntos_claridad || 0);
-}
+const HORAS_SESION = {
+  1: "1-2 horas",
+  2: "2-3 horas",
+  3: "3-4 horas",
+  4: "7-8 horas",
+  5: "Múltiples sesiones"
+};
 
-function obtenerRangoPrecio(puntos) {
-  if (puntos <= 2) return '1-2';
-  if (puntos <= 4) return '3-4';
-  if (puntos <= 6) return '5-6';
-  if (puntos <= 8) return '7-8';
-  return '9+';
-}
+const HORAS_DISENO = {
+  1: "1 hora",
+  2: "1-2 horas",
+  3: "2-3 horas",
+  4: "4-5 horas",
+  5: "5+ horas"
+};
 
-function formatearPrecio(numero) {
-  return numero.toLocaleString('es-CO', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  });
-}
+// ==========================================
+// ENDPOINT PRINCIPAL DE COTIZACIÓN
+// ==========================================
 
-// Endpoint principal
 app.post('/cotizar', (req, res) => {
   try {
-    const datos = req.body;
-    const puntosTotal = calcularPuntos(datos);
-    const rangoKey = obtenerRangoPrecio(puntosTotal);
-    const rango = PRECIO_RANGOS[rangoKey];
-    const zonaSensible = datos.zona_sensible === 'si';
-    
-    let precioMin = rango.min;
-    let precioMax = rango.max;
-    
-    if (zonaSensible) {
-      precioMin = Math.round(precioMin * 1.2);
-      precioMax = Math.round(precioMax * 1.2);
+    const {
+      puntos_tamano,
+      zona_sensible,
+      quiere_asesoria,
+      descripcion_idea
+    } = req.body;
+
+    if (!puntos_tamano) {
+      return res.status(400).json({
+        error: 'Faltan datos requeridos'
+      });
     }
-    
-    const quiereAsesoria = datos.quiere_asesoria === 'si';
-    
+
+    const puntos = parseInt(puntos_tamano);
+
+    if (!PRECIO_RANGOS[puntos]) {
+      return res.status(400).json({
+        error: 'Tamaño no válido'
+      });
+    }
+
+    // CASO ESPECIAL: Más grande (18cm+)
+    if (puntos === 5) {
+      return res.json({
+        requiere_cotizacion_personalizada: true,
+        mensaje: "Para tatuajes de 18cm o más, necesitamos coordinar una cotización personalizada por WhatsApp.",
+        puntos_totales: 5,
+        descripcion_idea: descripcion_idea || ''
+      });
+    }
+
+    // Calcular precio base
+    let precio_min = PRECIO_RANGOS[puntos].min;
+    let precio_max = PRECIO_RANGOS[puntos].max;
+
+    // Ajuste por zona sensible (+5%)
+    if (zona_sensible === 'si') {
+      precio_min = Math.round(precio_min * 1.05);
+      precio_max = Math.round(precio_max * 1.05);
+    }
+
+    // Ajuste por asesoría (opcional)
+    if (quiere_asesoria === 'si') {
+      precio_min += 100000;
+      precio_max += 100000;
+    }
+
+    // Formatear precios
+    const precio_min_formateado = precio_min.toLocaleString('es-CO') + ' COP';
+    const precio_max_formateado = precio_max.toLocaleString('es-CO') + ' COP';
+
+    // Calcular promedio (disponible pero no usado en mensaje)
+    const precio_promedio = Math.round((precio_min + precio_max) / 2);
+    const precio_promedio_formateado = precio_promedio.toLocaleString('es-CO') + ' COP';
+
+    // Obtener horas estimadas
+    const diseno_horas = HORAS_DISENO[puntos];
+    const sesion_horas = HORAS_SESION[puntos];
+
+    // Responder
     res.json({
-      puntos: puntosTotal,
-      precio_min: precioMin,
-      precio_max: precioMax,
-      precio_min_formateado: formatearPrecio(precioMin) + ' COP',
-      precio_max_formateado: formatearPrecio(precioMax) + ' COP',
-      diseno_horas: rango.disenoHrs,
-      sesion_horas: rango.sesionHrs,
-      zona_sensible: zonaSensible,
-      quiere_asesoria: quiereAsesoria,
-      descripcion_idea: datos.descripcion_idea || ''
+      precio_min: precio_min,
+      precio_max: precio_max,
+      precio_min_formateado: precio_min_formateado,
+      precio_max_formateado: precio_max_formateado,
+      precio_promedio: precio_promedio,
+      precio_promedio_formateado: precio_promedio_formateado,
+      diseno_horas: diseno_horas,
+      sesion_horas: sesion_horas,
+      puntos_totales: puntos,
+      zona_sensible: zona_sensible,
+      quiere_asesoria: quiere_asesoria || 'no',
+      descripcion_idea: descripcion_idea || '',
+      requiere_cotizacion_personalizada: false
     });
+
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ error: 'Error al procesar cotización' });
+    console.error('Error en cotización:', error);
+    res.status(500).json({
+      error: 'Error al procesar la cotización'
+    });
   }
 });
 
-// Test endpoint
+// ==========================================
+// ENDPOINT DE PRUEBA
+// ==========================================
+
 app.get('/test', (req, res) => {
   res.json({
     mensaje: 'API Its Real funcionando ✅',
-    version: '1.0',
-    timestamp: new Date().toISOString()
+    version: '2.0',
+    fecha: new Date().toISOString()
   });
 });
 
-// Health check para Render
-app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', uptime: process.uptime() });
-});
+// ==========================================
+// INICIAR SERVIDOR
+// ==========================================
 
-// Página de inicio
-app.get('/', (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <title>Its Real API</title>
-      <style>
-        body {
-          font-family: 'Helvetica Neue', Arial, sans-serif;
-          max-width: 800px;
-          margin: 50px auto;
-          padding: 20px;
-          background: #F8F3EC;
-        }
-        h1 {
-          color: #9D4533;
-          text-align: center;
-          font-weight: 300;
-          letter-spacing: 4px;
-        }
-        .status {
-          text-align: center;
-          color: #4CAF50;
-          font-size: 18px;
-          margin: 20px 0;
-        }
-        .endpoint {
-          background: white;
-          padding: 20px;
-          margin: 20px 0;
-          border-radius: 10px;
-          border-left: 4px solid #9D4533;
-        }
-        code {
-          background: #f5f5f5;
-          padding: 2px 8px;
-          border-radius: 4px;
-        }
-      </style>
-    </head>
-    <body>
-      <h1>IT'S REAL API</h1>
-      <p class="status">✅ API Activa y Funcionando</p>
-      
-      <div class="endpoint">
-        <h3>POST /cotizar</h3>
-        <p>Calcula precio de tatuaje según parámetros.</p>
-        <p><strong>Parámetros:</strong></p>
-        <ul>
-          <li><code>puntos_tamano</code>: 1, 2, 3, o 5</li>
-          <li><code>puntos_zona</code>: 0 o 1</li>
-          <li><code>puntos_estilo</code>: 0 o 2</li>
-          <li><code>puntos_claridad</code>: 0</li>
-          <li><code>zona_sensible</code>: "si" o "no"</li>
-          <li><code>quiere_asesoria</code>: "si" o "no"</li>
-          <li><code>descripcion_idea</code>: texto</li>
-        </ul>
-      </div>
-
-      <div class="endpoint">
-        <h3>GET /test</h3>
-        <p>Verifica que la API está funcionando.</p>
-        <p><a href="/test" target="_blank">Probar →</a></p>
-      </div>
-    </body>
-    </html>
-  `);
-});
-
-// Iniciar servidor
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ API Its Real corriendo en puerto ${PORT}`);
-  console.log(`🌐 Endpoints disponibles:`);
-  console.log(`   GET  /       - Documentación`);
-  console.log(`   GET  /test   - Test de API`);
-  console.log(`   GET  /health - Health check`);
-  console.log(`   POST /cotizar - Cotización`);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`API Its Real corriendo en puerto ${PORT}`);
 });
