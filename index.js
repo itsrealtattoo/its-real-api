@@ -12,7 +12,7 @@ app.use(express.json());
 // ==========================================
 
 const PRECIO_RANGOS = {
-  1: { min: 400000, max: 400000 },      // Mini: precio fijo 400k
+  1: { min: 400000, max: 450000 },      // Mini
   2: { min: 500000, max: 700000 },      // Pequeño
   3: { min: 800000, max: 1000000 },     // Mediano
   4: { min: 1200000, max: 1500000 },    // Grande
