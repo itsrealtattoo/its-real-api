@@ -12,11 +12,19 @@ app.use(express.json());
 // ==========================================
 
 const PRECIO_RANGOS = {
-  1: { min: 400000, max: 450000 },      // Mini
-  2: { min: 500000, max: 700000 },      // Pequeño
-  3: { min: 800000, max: 1000000 },     // Mediano
-  4: { min: 1200000, max: 1500000 },    // Grande
-  5: { min: 0, max: 0 }                 // Más grande: cotización personalizada
+  1: { min: 400000, max: 450000 },
+  2: { min: 500000, max: 700000 },
+  3: { min: 800000, max: 1000000 },
+  4: { min: 1200000, max: 1500000 },
+  5: { min: 0, max: 0 }
+};
+
+const TAMANO_TEXTO = {
+  1: "Mini (3-5cm)",
+  2: "Pequeño (6-9cm)",
+  3: "Mediano (10-13cm)",
+  4: "Grande (14-17cm)",
+  5: "Muy grande (18cm+)"
 };
 
 const HORAS_SESION = {
@@ -62,12 +70,20 @@ app.post('/cotizar', (req, res) => {
       });
     }
 
+    // Obtener texto descriptivo del tamaño
+    const tamano_texto = TAMANO_TEXTO[puntos];
+    
+    // Convertir zona sensible a texto descriptivo
+    const zona_texto = zona_sensible === 'si' ? 'Zona sensible (costillas, pies, manos, cuello, etc.)' : 'Zona regular';
+
     // CASO ESPECIAL: Más grande (18cm+)
     if (puntos === 5) {
       return res.json({
         requiere_cotizacion_personalizada: true,
         mensaje: "Para tatuajes de 18cm o más, necesitamos coordinar una cotización personalizada por WhatsApp.",
         puntos_totales: 5,
+        tamano_texto: tamano_texto,
+        zona_texto: zona_texto,
         descripcion_idea: descripcion_idea || ''
       });
     }
@@ -92,9 +108,12 @@ app.post('/cotizar', (req, res) => {
     const precio_min_formateado = precio_min.toLocaleString('es-CO') + ' COP';
     const precio_max_formateado = precio_max.toLocaleString('es-CO') + ' COP';
 
-    // Calcular promedio (disponible pero no usado en mensaje)
+    // Calcular promedio
     const precio_promedio = Math.round((precio_min + precio_max) / 2);
     const precio_promedio_formateado = precio_promedio.toLocaleString('es-CO') + ' COP';
+
+    // Rango formateado para mostrar
+    const rango_precio = `${precio_min_formateado} - ${precio_max_formateado}`;
 
     // Obtener horas estimadas
     const diseno_horas = HORAS_DISENO[puntos];
@@ -108,10 +127,13 @@ app.post('/cotizar', (req, res) => {
       precio_max_formateado: precio_max_formateado,
       precio_promedio: precio_promedio,
       precio_promedio_formateado: precio_promedio_formateado,
+      rango_precio: rango_precio,
       diseno_horas: diseno_horas,
       sesion_horas: sesion_horas,
       puntos_totales: puntos,
+      tamano_texto: tamano_texto,
       zona_sensible: zona_sensible,
+      zona_texto: zona_texto,
       quiere_asesoria: quiere_asesoria || 'no',
       descripcion_idea: descripcion_idea || '',
       requiere_cotizacion_personalizada: false
@@ -132,18 +154,15 @@ app.post('/cotizar', (req, res) => {
 app.get('/test', (req, res) => {
   res.json({
     mensaje: 'API Its Real funcionando ✅',
-    version: '2.0',
+    version: '2.1',
     fecha: new Date().toISOString()
   });
 });
 
 // ==========================================
-// INICIAR SERVIDOR
-// ==========================================
-
-// ==========================================
 // ENDPOINTS DE HEALTH CHECK
 // ==========================================
+
 app.get('/', (req, res) => {
   res.json({
     status: 'ok',
@@ -153,6 +172,15 @@ app.get('/', (req, res) => {
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+// ==========================================
+// INICIAR SERVIDOR
+// ==========================================
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`API Its Real corriendo en puerto ${PORT}`);
 });
 
 const PORT = process.env.PORT || 3000;
