@@ -182,8 +182,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`API Its Real corriendo en puerto ${PORT}`);
 });
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`API Its Real corriendo en puerto ${PORT}`);
-});
