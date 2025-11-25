@@ -141,6 +141,20 @@ app.get('/test', (req, res) => {
 // INICIAR SERVIDOR
 // ==========================================
 
+// ==========================================
+// ENDPOINTS DE HEALTH CHECK
+// ==========================================
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    mensaje: 'API Its Real activa ✅'
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`API Its Real corriendo en puerto ${PORT}`);
